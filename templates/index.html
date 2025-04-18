@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SAMS - Procedure Runner</title>
+    <script>
+        function addParamField() {
+            const container = document.getElementById('params');
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.name = 'params';
+            input.placeholder = 'Parameter value';
+            container.appendChild(input);
+            container.appendChild(document.createElement('br'));
+        }
+
+        async function submitForm(e) {
+            e.preventDefault();
+            const procName = document.getElementById('proc_name').value;
+            const paramInputs = document.getElementsByName('params');
+            const params = Array.from(paramInputs).map(input => input.value);
+
+            const response = await fetch('/call_procedure', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ proc_name: procName, params: params })
+            });
+
+            const output = await response.json();
+            document.getElementById('output').textContent = JSON.stringify(output, null, 2);
+        }
+    </script>
+</head>
+<body>
+    <h1>Run MySQL Stored Procedure</h1>
+    <form onsubmit="submitForm(event)">
+        <label>Procedure Name: 
+            <input type="text" id="proc_name" required>
+        </label>
+        <br><br>
+        <div id="params">
+            <!-- Dynamic parameter inputs go here -->
+        </div>
+        <button type="button" onclick="addParamField()">Add Parameter</button><br><br>
+        <button type="submit">Run</button>
+    </form>
+
+    <h2>Results</h2>
+    <pre id="output"></pre>
+</body>
+</html>
