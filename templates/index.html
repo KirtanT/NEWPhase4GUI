@@ -3,20 +3,22 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SAMS - Procedure Runner</title>
+  <title>SAMS - Procedure & View Runner</title>
   <style>
     body { font-family: Arial, sans-serif; margin: 2rem; }
+    h1 { margin-top: 2rem; }
     label { display: block; margin-bottom: 0.5rem; }
     select, input[type=text] { padding: 0.4rem; margin-right: 0.5rem; }
     button { padding: 0.5rem 1rem; margin-top: 1rem; }
-    pre { background: #f5f5f5; padding: 1rem; border-radius: 4px; max-height: 400px; overflow: auto; }
+    table { border-collapse: collapse; width: 100%; margin-top: 1rem; }
+    th, td { border: 1px solid #aaa; padding: 0.5rem; text-align: left; }
+    th { background: #ddd; }
     .param-row { margin-bottom: 0.5rem; }
     .param-row label { width: 200px; display: inline-block; }
   </style>
 </head>
 <body>
   <h1>Run MySQL Stored Procedure</h1>
-
   <label for="procSelect">Procedure:
     <select id="procSelect">
       <option value="">-- choose --</option>
@@ -35,99 +37,140 @@
       <option value="simulation_cycle">simulation_cycle</option>
     </select>
   </label>
-
   <div id="paramContainer"></div>
-  <button id="runBtn" disabled>Run</button>
+  <button id="runProcBtn" disabled>Run Procedure</button>
 
-  <h2>Results</h2>
-  <pre id="output">(no results yet)</pre>
+  <h2>Procedure Results</h2>
+  <div id="outputContainer"></div>
+
+  <h1>Query Database View</h1>
+  <label for="viewSelect">View:
+    <select id="viewSelect">
+      <option value="">-- choose --</option>
+      <option value="flights_in_the_air">flights_in_the_air</option>
+      <option value="flights_on_the_ground">flights_on_the_ground</option>
+      <option value="people_in_the_air">people_in_the_air</option>
+      <option value="people_on_the_ground">people_on_the_ground</option>
+      <option value="route_summary">route_summary</option>
+      <option value="alternative_airports">alternative_airports</option>
+    </select>
+  </label>
+  <button id="runViewBtn" disabled>Fetch View</button>
+
+  <h2 id="viewHeading">View Results</h2>
+  <div id="viewContainer"></div>
 
   <script>
-    // Map each procedure to its list of SQL parameter names (including 'ip_' prefix as label)
     const procParamsMap = {
-      add_airplane: [
-        'ip_airlineID','ip_tail_num','ip_seat_capacity','ip_speed','ip_locationID','ip_plane_type','ip_maintenanced','ip_model','ip_neo'
-      ],
-      add_airport: [
-        'ip_airportID','ip_airport_name','ip_city','ip_state','ip_country','ip_locationID'
-      ],
-      add_person: [
-        'ip_personID','ip_first_name','ip_last_name','ip_locationID','ip_taxID','ip_experience','ip_miles','ip_funds'
-      ],
-      grant_or_revoke_pilot_license: [
-        'ip_personID','ip_license'
-      ],
-      offer_flight: [
-        'ip_flightID','ip_routeID','ip_support_airline','ip_support_tail','ip_progress','ip_next_time','ip_cost'
-      ],
-      flight_landing: ['ip_flightID'],
-      flight_takeoff: ['ip_flightID'],
-      passengers_board: ['ip_flightID'],
-      passengers_disembark: ['ip_flightID'],
-      assign_pilot: ['ip_flightID','ip_personID'],
-      recycle_crew: ['ip_flightID'],
-      retire_flight: ['ip_flightID'],
+      add_airplane: [ 'ip_airlineID','ip_tail_num','ip_seat_capacity','ip_speed','ip_locationID','ip_plane_type','ip_maintenanced','ip_model','ip_neo' ],
+      add_airport: [ 'ip_airportID','ip_airport_name','ip_city','ip_state','ip_country','ip_locationID' ],
+      add_person: [ 'ip_personID','ip_first_name','ip_last_name','ip_locationID','ip_taxID','ip_experience','ip_miles','ip_funds' ],
+      grant_or_revoke_pilot_license: [ 'ip_personID','ip_license' ],
+      offer_flight: [ 'ip_flightID','ip_routeID','ip_support_airline','ip_support_tail','ip_progress','ip_next_time','ip_cost' ],
+      flight_landing: [ 'ip_flightID' ],
+      flight_takeoff: [ 'ip_flightID' ],
+      passengers_board: [ 'ip_flightID' ],
+      passengers_disembark: [ 'ip_flightID' ],
+      assign_pilot: [ 'ip_flightID','ip_personID' ],
+      recycle_crew: [ 'ip_flightID' ],
+      retire_flight: [ 'ip_flightID' ],
       simulation_cycle: []
     };
 
-    const procSelect = document.getElementById('procSelect');
-    const paramContainer = document.getElementById('paramContainer');
-    const runBtn = document.getElementById('runBtn');
-    const outputPre = document.getElementById('output');
+    const procSelect    = document.getElementById('procSelect');
+    const paramContainer= document.getElementById('paramContainer');
+    const runProcBtn    = document.getElementById('runProcBtn');
+    const outputContainer = document.getElementById('outputContainer');
+    const viewSelect    = document.getElementById('viewSelect');
+    const runViewBtn    = document.getElementById('runViewBtn');
+    const viewHeading   = document.getElementById('viewHeading');
+    const viewContainer = document.getElementById('viewContainer');
 
-    // When user selects a procedure, build its parameter fields
     procSelect.addEventListener('change', () => {
       paramContainer.innerHTML = '';
-      outputPre.textContent = '(no results yet)';
+      outputContainer.innerHTML = '';
       const proc = procSelect.value;
-      if (!proc) {
-        runBtn.disabled = true;
-        return;
-      }
-      runBtn.disabled = false;
-      const params = procParamsMap[proc] || [];
-      params.forEach(label => {
+      runProcBtn.disabled = !proc;
+      if (!proc) return;
+      procParamsMap[proc].forEach(label => {
         const key = label.replace(/^ip_/, '');
-        const row = document.createElement('div');
-        row.className = 'param-row';
-        const lbl = document.createElement('label');
-        lbl.textContent = label + ':';
-        const inp = document.createElement('input');
-        inp.type = 'text';
-        inp.name = key;
-        inp.required = true;
-        row.appendChild(lbl);
-        row.appendChild(inp);
+        const row = document.createElement('div'); row.className = 'param-row';
+        const lbl = document.createElement('label'); lbl.textContent = label + ':';
+        const inp = document.createElement('input'); inp.type = 'text'; inp.name = key; inp.required = true;
+        row.appendChild(lbl); row.appendChild(inp);
         paramContainer.appendChild(row);
       });
     });
 
-    // Run button click: gather JSON and fetch
-    runBtn.addEventListener('click', async () => {
+    runProcBtn.addEventListener('click', async () => {
       const proc = procSelect.value;
       const inputs = paramContainer.querySelectorAll('input[name]');
       const payload = {};
       inputs.forEach(inp => payload[inp.name] = inp.value);
-
-      outputPre.textContent = 'Running ' + proc + '...';
+      outputContainer.innerHTML = '<p>Running ' + proc + '...</p>';
       try {
         const res = await fetch(`/${proc}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
         });
         if (!res.ok) {
           const text = await res.text();
-          outputPre.textContent = `Error ${res.status}: ${text}`;
+          outputContainer.innerHTML = `<pre>Error ${res.status}: ${text}</pre>`;
           return;
         }
         const json = await res.json();
-        outputPre.textContent = JSON.stringify(json, null, 2);
+        outputContainer.innerHTML = `<pre>${JSON.stringify(json, null, 2)}</pre>`;
       } catch (err) {
-        outputPre.textContent = 'Fetch error: ' + err;
+        outputContainer.innerHTML = `<pre>Fetch error: ${err}</pre>`;
+      }
+    });
+
+    viewSelect.addEventListener('change', () => {
+      viewContainer.innerHTML = '';
+      viewHeading.textContent = 'View ' + (viewSelect.value || 'Results');
+      runViewBtn.disabled = !viewSelect.value;
+    });
+
+    runViewBtn.addEventListener('click', async () => {
+      const view = viewSelect.value;
+      viewContainer.innerHTML = '<p>Fetching ' + view + '...</p>';
+      try {
+        const res = await fetch(`/${view}`);
+        if (!res.ok) {
+          const text = await res.text();
+          viewContainer.innerHTML = `<pre>Error ${res.status}: ${text}</pre>`;
+          return;
+        }
+        const data = await res.json();
+        if (!data.length) {
+          viewContainer.innerHTML = '<p>(no rows)</p>';
+          return;
+        }
+        // Build table
+        const table = document.createElement('table');
+        const thead = document.createElement('thead');
+        const headerRow = document.createElement('tr');
+        Object.keys(data[0]).forEach(col => {
+          const th = document.createElement('th'); th.textContent = col;
+          headerRow.appendChild(th);
+        });
+        thead.appendChild(headerRow);
+        table.appendChild(thead);
+        const tbody = document.createElement('tbody');
+        data.forEach(row => {
+          const tr = document.createElement('tr');
+          Object.values(row).forEach(val => {
+            const td = document.createElement('td'); td.textContent = val;
+            tr.appendChild(td);
+          });
+          tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        viewContainer.innerHTML = '';
+        viewContainer.appendChild(table);
+      } catch (err) {
+        viewContainer.innerHTML = `<pre>Fetch error: ${err}</pre>`;
       }
     });
   </script>
 </body>
 </html>
- 

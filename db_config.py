@@ -8,5 +8,5 @@ def get_db_connection():
         password="", #PUT YOUR PASSWORD HERE
         database="flight_tracking"
 
-# testing
+
     )
