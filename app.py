@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, render_template
 from db_config import get_db_connection
 import datetime
 
@@ -8,16 +8,15 @@ app = Flask(__name__)
 def index():
     return render_template('index.html')
 
-# === Helpers ===
-
-def call_proc(proc_name, params):
+# create funciton for stored procedures by accessing flight_tracking database
+def pcall(procedure_name, inputs):
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        cursor.callproc(proc_name, params)
+        cursor.callproc(procedure_name, inputs)
         results = []
         for result in cursor.stored_results():
-            cols = [desc[0] for desc in result.description]
+            cols = [d[0] for d in result.description]
             for row in result.fetchall():
                 results.append(dict(zip(cols, row)))
         conn.commit()
@@ -26,63 +25,54 @@ def call_proc(proc_name, params):
         cursor.close()
         conn.close()
 
+# route the procedure call back to the html doc
+@app.route('/procedure', methods=['POST'])
+def prun():
+    data = request.get_json()
+    procedure_name = data.get('procedure_name')
+    inputs = data.get('inputs', [])
+    try:
+        results = pcall(procedure_name, inputs)
+        return results
+    except Exception as e:
+        return str(e), 500
 
-def call_view(view_name):
+# view endpoint
+def vcall(view):
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        cursor.execute(f"SELECT * FROM {view_name}")
-        cols = [desc[0] for desc in cursor.description]
+        cursor.execute(f"select * from {view}")
+        cols = [d[0] for d in cursor.description]
         rows = cursor.fetchall()
         output = []
         for row in rows:
-            record = {}
+            rec = {}
             for col, val in zip(cols, row):
                 if isinstance(val, datetime.timedelta):
-                    record[col] = str(val)
+                    rec[col] = str(val)
                 elif isinstance(val, (datetime.date, datetime.time, datetime.datetime)):
-                    record[col] = val.isoformat()
+                    rec[col] = val.isoformat()
                 else:
-                    record[col] = val
-            output.append(record)
+                    rec[col] = val
+            output.append(rec)
         return output
     finally:
         cursor.close()
         conn.close()
 
-# === Stored Procedure Endpoints ===
-
-@app.route('/<proc>', methods=['POST'])
-def run_procedure(proc):
-    # dynamic dispatch: if proc matches a stored procedure
-    if proc not in call_proc.__globals__:
-        # Not using generic, call by name
-        data = request.get_json() or {}
-        # all values as list for call_proc
-        params = []
-        # get parameter order from SQL or assume dict order
-        params = list(data.values())
-        try:
-            results = call_proc(proc, params)
-            return jsonify(results)
-        except Exception as e:
-            return jsonify({'error': str(e)}), 500
-    return jsonify({'error': 'Procedure not found'}), 404
-
-# === View Endpoints ===
-
-@app.route('/<view>', methods=['GET'])
-def run_view(view):
-    # Only allow known views
-    views = { 'flights_in_the_air', 'flights_on_the_ground', 'people_in_the_air', 
-              'people_on_the_ground', 'route_summary', 'alternative_airports' }
-    if view not in views:
-        return jsonify({'error': 'View not found'}), 404
+@app.route('/view/<view>', methods=['GET'])
+def vrun(view):
+    if view not in {
+        'flights_in_the_air', 'flights_on_the_ground',
+        'people_in_the_air', 'people_on_the_ground',
+        'route_summary', 'alternative_airports'}:
+        return 'View not found', 404
     try:
-        data = call_view(view)
-        return jsonify(data)
+        data = vcall(view)
+        return data
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return str(e), 500
 
 if __name__ == '__main__':
     app.run(debug=True)

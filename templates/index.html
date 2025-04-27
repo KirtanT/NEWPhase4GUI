@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -18,7 +17,7 @@
   </style>
 </head>
 <body>
-  <h1>Run MySQL Stored Procedure</h1>
+  <h1>Stored Procedures</h1>
   <label for="procSelect">Procedure:
     <select id="procSelect">
       <option value="">-- choose --</option>
@@ -40,10 +39,9 @@
   <div id="paramContainer"></div>
   <button id="runProcBtn" disabled>Run Procedure</button>
 
-  <h2>Procedure Results</h2>
   <div id="outputContainer"></div>
 
-  <h1>Query Database View</h1>
+  <h1>Views</h1>
   <label for="viewSelect">View:
     <select id="viewSelect">
       <option value="">-- choose --</option>
@@ -77,14 +75,14 @@
       simulation_cycle: []
     };
 
-    const procSelect    = document.getElementById('procSelect');
-    const paramContainer= document.getElementById('paramContainer');
-    const runProcBtn    = document.getElementById('runProcBtn');
+    const procSelect      = document.getElementById('procSelect');
+    const paramContainer  = document.getElementById('paramContainer');
+    const runProcBtn      = document.getElementById('runProcBtn');
     const outputContainer = document.getElementById('outputContainer');
-    const viewSelect    = document.getElementById('viewSelect');
-    const runViewBtn    = document.getElementById('runViewBtn');
-    const viewHeading   = document.getElementById('viewHeading');
-    const viewContainer = document.getElementById('viewContainer');
+    const viewSelect      = document.getElementById('viewSelect');
+    const runViewBtn      = document.getElementById('runViewBtn');
+    const viewHeading     = document.getElementById('viewHeading');
+    const viewContainer   = document.getElementById('viewContainer');
 
     procSelect.addEventListener('change', () => {
       paramContainer.innerHTML = '';
@@ -105,12 +103,13 @@
     runProcBtn.addEventListener('click', async () => {
       const proc = procSelect.value;
       const inputs = paramContainer.querySelectorAll('input[name]');
-      const payload = {};
-      inputs.forEach(inp => payload[inp.name] = inp.value);
-      outputContainer.innerHTML = '<p>Running ' + proc + '...</p>';
+      const payload = { procedure_name: proc, inputs: [] };
+      inputs.forEach(inp => payload.inputs.push(inp.value));
+      outputContainer.innerHTML = `<p>Running ${proc}...</p>`;
       try {
-        const res = await fetch(`/${proc}`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+        const res = await fetch('/procedure', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
         });
         if (!res.ok) {
           const text = await res.text();
@@ -132,9 +131,9 @@
 
     runViewBtn.addEventListener('click', async () => {
       const view = viewSelect.value;
-      viewContainer.innerHTML = '<p>Fetching ' + view + '...</p>';
+      viewContainer.innerHTML = `<p>Fetching ${view}...</p>`;
       try {
-        const res = await fetch(`/${view}`);
+        const res = await fetch(`/view/${view}`);
         if (!res.ok) {
           const text = await res.text();
           viewContainer.innerHTML = `<pre>Error ${res.status}: ${text}</pre>`;
@@ -145,7 +144,6 @@
           viewContainer.innerHTML = '<p>(no rows)</p>';
           return;
         }
-        // Build table
         const table = document.createElement('table');
         const thead = document.createElement('thead');
         const headerRow = document.createElement('tr');
