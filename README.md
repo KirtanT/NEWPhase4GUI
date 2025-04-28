@@ -18,3 +18,5 @@ HTML & Java Script: Used to render the homepage and structure the front end.
 MySQL: Used as the relational database system.  
 
 We built a Flask web application (with app.py as the file) that connects to a relational database. We wrote a db_config.py file that handles database connections using a function get_db_connection(). Furthermore, we defined multiple POST routes to allow inserting or updating information via stored procedures using input parameters. Moreover, we defined multiple GET routes to fetch summarized data from views. The application handles requests, manages database connections, and returns data in JSON format for easy interaction.
+
+Kirtan and Jedidiah primarily contributed to the development of the application's front-end interface, while Joe and Gautam were responsible for back-end development. The entire team collaborated closely on tasks that involved difficult aspects or specific challenges.
